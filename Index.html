@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>จองห้องพัก</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Include Flatpickr CSS and JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <!-- Include config.js สำหรับ CONFIG.GAS_URL -->
+  <script src="Config.js"></script>
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
+  <!-- Custom CSS for loading spinner -->
+  <style>
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #071d4a;
+      border-radius: 50%;
+      width: 64px;
+      height: 64px;
+      animation: spin 1s linear infinite;
+    }
+    .flatpickr-day.selected, .flatpickr-day.startRange{
+      background: #071d4a;
+      -webkit-box-shadow: none;
+      box-shadow: none;
+      color: #fff;
+      border-color: #071d4a;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+      backdrop-filter: blur(3.5px);
+      -webkit-backdrop-filter: blur(3.5px);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+  </style>
+</head>
+
+<body class="bg-gradient-to-b from-blue-200 via-purple-100 to-white min-h-screen relative">
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay"
+    class="fixed inset-0 flex items-center justify-center bg-[#071d4a] bg-opacity-50 z-50 hidden">
+    <div class="loader"></div>
+  </div>
+
+  <!-- STEP 1: เลือกห้อง -->
+  <div id="step1" class="p-4 max-w-md mx-auto">
+    <div class="glass rounded-2xl p-4 my-2 shadow-sm">
+      <div class="flex justify-between space-x-2">
+        <div class="w-24">
+          <img src="https://lh5.googleusercontent.com/d/12rrakhyHp_C19gAeDn3SF-C97NN--YhA" alt="logo">
+        </div>
+        <div class="w-full px-2">
+          <label class="text-sm text-slate-800 block mb-1 text-center">เลือกวันที่เข้าพักและวันที่ออก</label>
+          <div class="bg-white rounded-full px-4 py-2 mb-2 shadow-sm">
+            <input type="text" id="step1DateRange" placeholder="เลือกวันที่..."
+              class="w-full text-sm text-center font-bold text-slate-800 focus:outline-none" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="step1RoomList" class="flex flex-col"></div>
+  </div>
+
+  <!-- STEP 2: ดูรายละเอียดห้อง -->
+  <div id="step2" class="hidden p-4 max-w-md mx-auto">
+    <button id="backToStep1"
+      class="bg-[#071d4a] py-2 px-4 rounded-2xl text-sm text-white mb-2 flex items-center space-x-1">
+      <span>←</span><span>กลับ</span>
+    </button>
+    <div>
+      <img id="detailMainImg" src="" alt="Room" class="w-full h-48 object-cover rounded-2xl mb-4" />
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 id="detailRoomName" class="font-bold text-base md:text-lg leading-tight"></h2>
+          <p id="detailRoomCategory" class="text-sm text-gray-500"></p>
+        </div>
+        <div class="text-right">
+          <div id="detailRoomPrice" class="text-red-500 font-bold text-base md:text-lg"></div>
+          <button id="detailBookBtn" class="mt-2 bg-[#071d4a] text-white text-sm py-2 px-3 rounded-2xl">
+            จองห้องนี้
+          </button>
+        </div>
+      </div>
+      <div id="detailFeatures" class="text-xs text-gray-500 mb-3"></div>
+      <div id="detailGallery" class="flex space-x-2 overflow-x-auto mb-4"></div>
+      <div id="detailRoomDesc" class="text-sm text-gray-700 mb-2"></div>
+      <div id="detailRoomDesc2" class="text-sm text-gray-700 mb-2"></div>
+      <!-- ส่วนรีวิว -->
+      <div id="reviewSection" class="mt-4">
+        <h3 class="font-bold mb-2">รีวิวล่าสุด</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: ฟอร์มจอง -->
+  <div id="step3" class="hidden p-4 max-w-md mx-auto">
+    <button id="backToStep2"
+      class="bg-[#071d4a] py-2 px-4 rounded-2xl text-sm text-white mb-2 flex items-center space-x-1">
+      <span>←</span><span>กลับ</span>
+    </button>
+    <div class="bg-white p-4 rounded-2xl ">
+      <form id="bookingForm">
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="block text-xs text-gray-500">ชื่อห้อง</label>
+            <input type="text" id="bookRoomName"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">หมวดหมู่</label>
+            <input type="text" id="bookRoomCategory"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">ราคา</label>
+            <input type="text" id="bookRoomPrice"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">จำนวนคืน</label>
+            <input type="text" id="bookNightCount"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">เข้าพักวันที่</label>
+            <input type="text" id="bookCheckIn"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">ออกวันที่</label>
+            <input type="text" id="bookCheckOut"
+              class="w-full border-b border-gray-300 bg-white text-sm font-semibold py-1" readonly />
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="block text-sm font-semibold mb-1">จำนวนคนเข้าพัก</label>
+          <input type="number" id="bookNumGuests" class="w-full border rounded-2xl p-2 text-sm" min="1" value="1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-sm font-semibold mb-1">ชื่อผู้เช่า</label>
+          <input type="text" id="bookRenterName" class="w-full border rounded-2xl p-2 text-sm"
+            placeholder="เช่น สมชาย ใจดี" required />
+        </div>
+        <div class="mb-2">
+          <label class="block text-sm font-semibold mb-1">เบอร์ติดต่อ</label>
+          <input type="tel" id="bookPhone" class="w-full border rounded-2xl p-2 text-sm" placeholder="เช่น 0812345678"
+            required />
+        </div>
+        <div class="mb-2">
+          <label class="block text-sm font-semibold mb-1">อีเมล</label>
+          <input type="email" id="bookEmail" class="w-full border rounded-2xl p-2 text-sm"
+            placeholder="example@gmail.com" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-sm font-semibold mb-1">หมายเหตุ</label>
+          <textarea id="bookNote" class="w-full border rounded-2xl p-2 text-sm" rows="3"></textarea>
+        </div>
+        <!-- ฟิลด์ซ่อนสำหรับเก็บ ไอดีห้อง (ไม่ให้แสดงใน UI) -->
+        <input type="hidden" id="bookRoomId" required />
+        <!-- ฟิลด์ซ่อนสำหรับเก็บ userLineId -->
+        <input type="hidden" id="bookUserLineId" required />
+        <button type="button" id="submitBookingBtn" class="bg-[#071d4a] text-white w-full py-3 rounded-2xl text-sm">
+          บันทึกการจอง
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+
+
+    // Global state
+    let roomsData = [];
+    let selectedRoom = null;
+    let selectedCheckIn = "";
+    let selectedCheckOut = "";
+    let userLineIdGlobal = "";
+
+    // LIFF initialization
+    async function initLiffGlobal() {
+      try {
+        // START: จุดที่ 2 - เปลี่ยนมาใช้ LIFF ID จาก Config
+        await liff.init({ liffId: CONFIG.LIFF_ID });
+        
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          const profile = await liff.getProfile();
+          userLineIdGlobal = profile.userId;
+          const hiddenField = document.getElementById("bookUserLineId");
+          if (hiddenField) {
+            hiddenField.value = profile.userId;
+          }
+        }
+      } catch (err) {
+        console.error("LIFF init error:", err);
+      }
+    }
+    document.addEventListener("DOMContentLoaded", initLiffGlobal);
+
+    // Utility functions
+    function parseDateDMY(dateStr) {
+      const parts = dateStr.split("-");
+      return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    function calculateNights(checkIn, checkOut) {
+      if (!checkIn || !checkOut) return "";
+      const start = parseDateDMY(checkIn);
+      const end = parseDateDMY(checkOut);
+      if (end <= start) return "0";
+      const diff = end - start;
+      return Math.floor(diff / (1000 * 60 * 60 * 24));
+    }
+    function showLoading() {
+      document.getElementById("loadingOverlay").classList.remove("hidden");
+    }
+    function hideLoading() {
+      document.getElementById("loadingOverlay").classList.add("hidden");
+    }
+
+    // Fetch rooms
+    async function fetchAllRooms() {
+      showLoading();
+      try {
+        const response = await fetch(CONFIG.GAS_URL);
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          console.error("Data received is not an array:", data);
+          return;
+        }
+        roomsData = data;
+        renderRoomList(data, false);
+      } catch (err) {
+        console.error("Error fetching rooms:", err);
+      } finally {
+        hideLoading();
+      }
+    }
+    async function fetchRooms(checkIn, checkOut) {
+      showLoading();
+      try {
+        const response = await fetch(`${CONFIG.GAS_URL}?checkIn=${checkIn}&checkOut=${checkOut}`);
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          console.error("Data received is not an array:", data);
+          return;
+        }
+        roomsData = data;
+        renderRoomList(data, true);
+      } catch (err) {
+        console.error("Error fetching rooms:", err);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Render room list
+    function renderRoomList(rooms, isStatusCalculated) {
+      const container = document.getElementById("step1RoomList");
+      container.innerHTML = "";
+      if (!Array.isArray(rooms)) {
+        console.error("Expected rooms to be an array, but got:", rooms);
+        container.innerHTML = "<p class='text-gray-500'>ไม่สามารถดึงข้อมูลห้องพักได้</p>";
+        return;
+      }
+      if (rooms.length === 0) {
+        container.innerHTML = "<p class='text-gray-500'>ไม่มีห้องที่ตรงกับการค้นหา</p>";
+        return;
+      }
+      if (isStatusCalculated) {
+        rooms.sort((a, b) => {
+          const sA = a["สถานะ"] ? a["สถานะ"].toLowerCase() : "";
+          const sB = b["สถานะ"] ? b["สถานะ"].toLowerCase() : "";
+          if (sA === "ว่าง" && sB === "ไม่ว่าง") return -1;
+          if (sA === "ไม่ว่าง" && sB === "ว่าง") return 1;
+          return 0;
+        });
+      }
+      const dateRange = document.getElementById("step1DateRange").value;
+      let checkInDateValue = "";
+      let checkOutDateValue = "";
+      if (dateRange && dateRange.includes(" to ")) {
+        const parts = dateRange.split(" to ");
+        checkInDateValue = parts[0].trim();
+        checkOutDateValue = parts[1].trim();
+      }
+      const popularRooms = rooms.filter(room => room["หมวดหมู่"] && room["หมวดหมู่"].toLowerCase() === "popular");
+      const otherRooms = rooms.filter(room => !room["หมวดหมู่"] || room["หมวดหมู่"].toLowerCase() !== "popular");
+
+      // Popular Rooms
+      if (popularRooms.length > 0) {
+        const headingPopular = document.createElement("h3");
+        headingPopular.className = "text-md font-bold  mb-2";
+        headingPopular.textContent = "⭐ POPULAR";
+        container.appendChild(headingPopular);
+        const poppularContainer = document.createElement("div");
+        poppularContainer.className = "flex space-x-4 overflow-x-auto pb-4";
+        container.appendChild(poppularContainer);
+        popularRooms.forEach((room) => {
+          let statusText = "";
+          let statusColor = "";
+          if (isStatusCalculated) {
+            if (room["สถานะ"] && room["สถานะ"].toLowerCase() === "ไม่ว่าง") {
+              statusText = "ไม่ว่าง";
+              statusColor = "bg-red-500";
+            } else {
+              statusText = "ว่าง";
+              statusColor = "bg-green-500";
+            }
+          }
+          const card = document.createElement("div");
+          card.className = "relative w-48 h-40 rounded-2xl overflow-hidden shadow flex-shrink-0";
+          const bgImg = document.createElement("img");
+          bgImg.src = room["รูปภาพ"];
+          bgImg.alt = room["ชื่อ"] || "Room";
+          bgImg.className = "absolute inset-0 w-full h-full object-cover";
+          card.appendChild(bgImg);
+          const gradientOverlay = document.createElement("div");
+          gradientOverlay.className = "absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent";
+          card.appendChild(gradientOverlay);
+          if (statusText) {
+            const statusBadge = document.createElement("div");
+            statusBadge.className = `absolute top-2 right-2 px-3 py-1 text-white text-sm rounded-2xl ${statusColor}`;
+            statusBadge.textContent = statusText;
+            card.appendChild(statusBadge);
+          }
+          const infoDiv = document.createElement("div");
+          infoDiv.className = "absolute bottom-2 left-2 text-white";
+          const title = document.createElement("div");
+          title.className = "font-semibold text-sm";
+          title.textContent = room["ชื่อ"] || "ไม่มีชื่อ";
+          infoDiv.appendChild(title);
+          const price = document.createElement("div");
+          price.className = "text-sm";
+          if (room["ราคาลด"]) {
+            price.innerHTML = `<span class="line-through text-gray-200 mr-1">${room["ราคา"]}</span>
+                                <span class="font-bold">${room["ราคาลด"]}</span>`;
+          } else {
+            price.textContent = room["ราคา"] || "0";
+          }
+          infoDiv.appendChild(price);
+          card.appendChild(infoDiv);
+          const selectBtn = document.createElement("button");
+          selectBtn.className = "absolute bottom-2 right-2 bg-[#071D4A] text-white text-sm px-3 py-1 rounded-2xl shadow";
+          selectBtn.textContent = "เลือก";
+          selectBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            selectedRoom = room;
+            selectedCheckIn = checkInDateValue;
+            selectedCheckOut = checkOutDateValue;
+            showStep("step2");
+            populateDetail();
+          });
+          card.appendChild(selectBtn);
+          poppularContainer.appendChild(card);
+        });
+      }
+
+      // Other Rooms
+      if (otherRooms.length > 0) {
+        const headingOthers = document.createElement("h3");
+        headingOthers.className = "text-md font-bold mb-2";
+        headingOthers.textContent = "🏠 ROOM";
+        container.appendChild(headingOthers);
+        otherRooms.forEach((room) => {
+          let statusText = "";
+          let statusColor = "";
+          if (isStatusCalculated) {
+            if (room["สถานะ"] && room["สถานะ"].toLowerCase() === "ไม่ว่าง") {
+              statusText = "ไม่ว่าง";
+              statusColor = "bg-red-500";
+            } else {
+              statusText = "ว่าง";
+              statusColor = "bg-green-500";
+            }
+          }
+          const row = document.createElement("div");
+          row.className = "glass rounded-2xl shadow  flex items-center mb-3";
+          const imgWrapper = document.createElement("div");
+          imgWrapper.className = "w-28 h-24 overflow-hidden rounded-l-2xl";
+          const img = document.createElement("img");
+          img.src = room["รูปภาพ"];
+          img.alt = room["ชื่อ"];
+          img.className = "w-full h-full object-cover";
+          imgWrapper.appendChild(img);
+          row.appendChild(imgWrapper);
+          const middleDiv = document.createElement("div");
+          middleDiv.className = "flex-1 p-4";
+          const title = document.createElement("div");
+          title.className = "font-bold text-sm";
+          title.textContent = room["ชื่อ"] || "ไม่มีชื่อ";
+          middleDiv.appendChild(title);
+          const category = document.createElement("div");
+          category.className = "text-xs text-gray-500";
+          category.textContent = room["หมวดหมู่"] || "";
+          middleDiv.appendChild(category);
+          const priceLine = document.createElement("div");
+          priceLine.className = "text-sm mt-1";
+          if (room["ราคาลด"]) {
+            priceLine.innerHTML = `<span class="text-gray-400 line-through mr-2 text-sm">${room["ราคา"]}</span>
+                                   <span class="text-red-500 font-bold">${room["ราคาลด"]}</span>`;
+          } else {
+            priceLine.innerHTML = `<span class="text-red-500 font-bold">${room["ราคา"] || "0"}</span>`;
+          }
+          middleDiv.appendChild(priceLine);
+          row.appendChild(middleDiv);
+          const rightDiv = document.createElement("div");
+          rightDiv.className = "flex flex-col w-24 items-end space-y-1 p-2";
+          if (statusText) {
+            const statusBtn = document.createElement("button");
+            statusBtn.className = " w-full text-white text-sm p-2  rounded-2xl bg-green-500";
+            statusBtn.textContent = statusText;
+            statusBtn.classList.add(statusColor);
+            rightDiv.appendChild(statusBtn);
+          }
+          const btnSelect = document.createElement("button");
+          btnSelect.className = "bg-[#071d4a] w-full text-white text-sm p-2  rounded-2xl";
+          btnSelect.textContent = "เลือก";
+          btnSelect.addEventListener("click", (e) => {
+            e.preventDefault();
+            selectedRoom = room;
+            selectedCheckIn = checkInDateValue;
+            selectedCheckOut = checkOutDateValue;
+            showStep("step2");
+            populateDetail();
+          });
+          rightDiv.appendChild(btnSelect);
+          row.appendChild(rightDiv);
+          container.appendChild(row);
+        });
+      }
+    }
+
+    // โหลดรีวิวทั้งหมดจากชีต "Reviwe" แล้วกรองด้วย "ห้องพัก" = ชื่อห้อง
+    function loadReviews(roomName) {
+      fetch(CONFIG.GAS_URL + "?action=getAllReviews")
+        .then(response => response.json())
+        .then(allReviews => {
+          // กรองรีวิวที่ "ห้องพัก" ตรงกับชื่อห้อง (เช่น "ห้อง A")
+          const reviews = allReviews.filter(review =>
+            String(review["ห้องพัก"]).trim() === String(roomName).trim()
+          );
+          renderReviews(reviews);
+        })
+        .catch(error => console.error("Error fetching reviews:", error));
+    }
+
+    // Render รีวิวลงใน reviewSection (UI แบบใหม่)
+    function renderReviews(reviews) {
+      const reviewSection = document.getElementById("reviewSection");
+      reviewSection.innerHTML = "<h3 class='font-bold mb-2'>รีวิวล่าสุด</h3>";
+      if (!Array.isArray(reviews)) {
+        reviewSection.innerHTML += "<p class='text-red-500'>ข้อมูลรีวิวไม่ถูกต้อง</p>";
+        return;
+      }
+      if (reviews.length === 0) {
+        reviewSection.innerHTML += "<p class='text-gray-500'>ไม่มีรีวิว</p>";
+        return;
+      }
+      reviews.forEach(review => {
+        // สร้าง div หลัก
+        const div = document.createElement("div");
+        div.className = "flex items-center justify-between p-2 bg-white rounded mb-2 ";
+
+        // ซ้าย: ชื่อ + รายละเอียด
+        const leftPart = document.createElement("div");
+        const reviewer = document.createElement("div");
+        reviewer.className = "font-semibold text-gray-800 text-sm";
+        reviewer.textContent = "ชื่อ " + review["ชื่อ"];
+
+        const detail = document.createElement("div");
+        detail.className = "text-sm text-gray-500";
+        detail.textContent = review["รายละเอียด"];
+
+        leftPart.appendChild(reviewer);
+        leftPart.appendChild(detail);
+
+        // ขวา: คะแนนรวม ในกล่องสีเหลือง ตัวหนังสือสีน้ำเงิน
+        const rightPart = document.createElement("div");
+        rightPart.className = "bg-yellow-300 text-blue-700 font-bold px-3 py-1 rounded text-center text-sm";
+        const averageScore = (Number(review["คะแนนรวม"]) / 4).toFixed(1);
+        rightPart.textContent = averageScore;
+
+        div.appendChild(leftPart);
+        div.appendChild(rightPart);
+        reviewSection.appendChild(div);
+      });
+    }
+
+    // Populate detail page ของห้อง
+    function populateDetail() {
+      // กำหนดชื่อและหมวดหมู่ให้แสดงเสมอ
+      document.getElementById("detailRoomName").textContent = selectedRoom["ชื่อ"] || "";
+      document.getElementById("detailRoomCategory").textContent = selectedRoom["หมวดหมู่"] ? `(${selectedRoom["หมวดหมู่"]})` : "";
+
+      // กำหนดราคา
+      if (selectedRoom["ราคาลด"]) {
+        document.getElementById("detailRoomPrice").innerHTML = `<span class="line-through text-gray-500 mr-2">${selectedRoom["ราคา"]}</span><span class="text-red-500 font-bold">${selectedRoom["ราคาลด"]}</span>`;
+      } else {
+        document.getElementById("detailRoomPrice").textContent = selectedRoom["ราคา"] || "0";
+      }
+
+      const mainImgElement = document.getElementById("detailMainImg");
+      mainImgElement.src = selectedRoom["รูปภาพ"] || "";
+      mainImgElement.alt = selectedRoom["ชื่อ"] || "Room";
+
+      const featuresContainer = document.getElementById("detailFeatures");
+      featuresContainer.className = "grid grid-cols-3 gap-y-2 gap-x-4 text-sm text-gray-600 p-4 mb-4 glass rounded-2xl shadow-sm";
+      featuresContainer.innerHTML = "";
+
+      // ไอคอน SVG ตัวอย่าง
+      const iconWifi = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <path d="M12 18.5H12.0118" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M8.25 15.5C10.25 13.5 13.75 13.5 15.75 15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M18.5 12.5C14.7324 9.16667 9.5 9.16667 5.5 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M2 9.5C8.31579 4.16669 15.6842 4.16668 22 9.49989" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>          
+      `;
+      const iconParking = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <path d="M12 6L12.9536 9.85977C13.119 10.5295 13.72 11 14.4098 11H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M2 6H13.0689C14.6176 6 15.3919 6 16.0484 6.34597C16.705 6.69194 17.1427 7.33069 18.0182 8.60818C18.6321 9.50396 19.2765 10.1542 20.1826 10.7326C21.0949 11.315 21.5287 11.5996 21.7694 12.0566C22 12.4942 22 13.0125 22 14.049C22 15.4156 22 16.0989 21.5875 16.5331C21.5699 16.5517 21.5517 16.5699 21.5331 16.5875C21.0989 17 20.4156 17 19.049 17M5 17C4.67926 17 4.38501 17 4.22939 16.9666C4.07377 16.9332 3.92752 16.8674 3.63503 16.7358L2 16C2 12.8056 2.47904 10.9623 3.10557 9.44992C3.5164 8.45825 3.72182 7.96241 3.63686 7.52064C3.5519 7.07887 2.5 6 2.5 6M9 17H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="17" cy="17" r="2" stroke="currentColor" stroke-width="1.5" />
+            <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      `;
+      const iconPool = `
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+          <path d="M2 16c1.333 0 1.333 1.333 2.667 1.333S6 16 7.333 16 8.667 17.333 10 17.333s1.333-1.333 2.667-1.333S14 17.333 15.333 17.333 16.667 16 18 16s1.333 1.333 2.667 1.333S22 16 24 16v2c-1.333 0-1.333 1.333-2.667 1.333S19.333 18 18 18s-1.333 1.333-2.667 1.333S13.333 18 12 18s-1.333 1.333-2.667 1.333S6.667 18 5.333 18 4 19.333 2.667 19.333 1.333 18 0 18v-2z"/>
+        </svg>
+      `;
+      const iconRestaurant = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <path d="M4 21.001L7.00071 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M15 10.001L14 11.001" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M17.9999 3.00098L14.9999 6.00098C14.4547 6.54623 14.1821 6.81885 14.0363 7.11295C13.759 7.6725 13.759 8.32945 14.0363 8.88901C14.1821 9.1831 14.4547 9.45573 14.9999 10.001C15.5452 10.5462 15.8178 10.8189 16.1119 10.9646C16.6715 11.2419 17.3284 11.2419 17.888 10.9646C18.1821 10.8189 18.4547 10.5462 18.9999 10.001L21.9999 7.00098" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M20 5L17 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M20 21L12 13M12 13L2 3C2 6.84174 3.52612 10.5261 6.24264 13.2426L9 16L12 13Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      `;
+      const iconMassage = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <path d="M15.5 10C14.6716 10 14 9.32843 14 8.5M8.5 10C9.32843 10 10 9.32843 10 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M14 2V2.64298C14 3.22979 14 3.52319 14.0654 3.77255C14.223 4.37391 14.6513 4.86778 15.2244 5.10888C15.462 5.20885 15.7524 5.25035 16.3333 5.33333C17.4952 5.49931 18.0761 5.5823 18.5513 5.78224C19.6973 6.26445 20.554 7.25217 20.8693 8.4549C21 8.95361 21 9.54043 21 10.714V22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M10 2V2.64298C10 3.22979 10 3.52319 9.93463 3.77255C9.77699 4.37391 9.34867 4.86778 8.77564 5.10888C8.53804 5.20885 8.24758 5.25035 7.66667 5.33333C6.50484 5.49931 5.92393 5.5823 5.44871 5.78224C4.30266 6.26445 3.44601 7.25217 3.13073 8.4549C3 8.95361 3 9.54043 3 10.714V22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 13V22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M18 11.5C18 11.5 17.4549 14.3636 17.503 17.2273C17.535 19.1271 18 22 18 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M6 11.5C6 11.5 6.54513 14.3636 6.49699 17.2273C6.46505 19.1271 6 22 6 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      `;
+
+      const featuresData = [
+        { label: "WiFi", key: "WiFi", icon: iconWifi },
+        { label: "ที่จอดรถ", key: "ที่จอดรถ", icon: iconParking },
+        { label: "สระว่ายน้ำ", key: "สระว่ายน้ำ", icon: iconPool },
+        { label: "ห้องอาหาร", key: "ห้องอาหาร", icon: iconRestaurant },
+        { label: "นวด", key: "นวด", icon: iconMassage },
+      ];
+
+      featuresData.forEach(item => {
+        const hasFeature = String(selectedRoom[item.key]).toLowerCase() === "true";
+        const featureDiv = document.createElement("div");
+        featureDiv.className = "flex items-center space-x-2";
+        if (hasFeature) {
+          featureDiv.innerHTML = `
+            <span class="text-slate-800">
+              ${item.icon}
+            </span>
+            <span class="text-slate-900">${item.label}</span>
+          `;
+        } else {
+          featureDiv.innerHTML = `
+            <span class="text-gray-300">
+              ${item.icon}
+            </span>
+            <span class="text-gray-400">${item.label}</span>
+          `;
+        }
+        featuresContainer.appendChild(featureDiv);
+      });
+
+      const galleryContainer = document.getElementById("detailGallery");
+      galleryContainer.innerHTML = "";
+      for (let i = 1; i <= 4; i++) {
+        const key = `รูปประกอบ-${i}`;
+        if (selectedRoom[key]) {
+          const img = document.createElement("img");
+          img.src = selectedRoom[key];
+          img.alt = key;
+          img.className = "w-20 h-20 object-cover rounded-2xl cursor-pointer";
+          img.addEventListener("click", () => {
+            mainImgElement.src = selectedRoom[key];
+            mainImgElement.alt = key;
+          });
+          galleryContainer.appendChild(img);
+        }
+      }
+
+      document.getElementById("detailRoomDesc").textContent = selectedRoom["รายละเอียด"] || "";
+      document.getElementById("detailRoomDesc2").textContent = selectedRoom["รายละเอียด-2"] || "";
+
+      loadReviews(selectedRoom["ชื่อ"]);
+
+      const bookingBtn = document.getElementById("detailBookBtn");
+      if (!selectedCheckIn || !selectedCheckOut) {
+        bookingBtn.disabled = true;
+        bookingBtn.classList.add("opacity-50", "cursor-not-allowed");
+        bookingBtn.textContent = "เลือกวันที่เข้าพักก่อน";
+      } else if (selectedRoom["สถานะ"] && selectedRoom["สถานะ"].toLowerCase() === "ไม่ว่าง") {
+        bookingBtn.disabled = true;
+        bookingBtn.classList.add("opacity-50", "cursor-not-allowed");
+        bookingBtn.textContent = "ไม่ว่าง";
+      } else {
+        bookingBtn.disabled = false;
+        bookingBtn.classList.remove("opacity-50", "cursor-not-allowed");
+        bookingBtn.textContent = "จองห้องนี้";
+        bookingBtn.onclick = () => {
+          showStep("step3");
+          populateBookingForm();
+        };
+      }
+    }
+
+    // Populate booking form
+    function populateBookingForm() {
+      // กำหนดค่าให้กับฟิลด์ซ่อน ไอดีห้อง
+      document.getElementById("bookRoomId").value = selectedRoom["ไอดีห้อง"] || "";
+      document.getElementById("bookRoomName").value = selectedRoom["ชื่อ"] || "";
+      document.getElementById("bookRoomCategory").value = selectedRoom["หมวดหมู่"] || "";
+      document.getElementById("bookCheckIn").value = selectedCheckIn;
+      document.getElementById("bookCheckOut").value = selectedCheckOut;
+
+      const nights = calculateNights(selectedCheckIn, selectedCheckOut);
+      document.getElementById("bookNightCount").value = nights + " คืน";
+
+      // ใช้ราคาลดหากมี ไม่เช่นนั้นใช้ราคาปกติ
+      let nightlyPrice = selectedRoom["ราคาลด"] ? parseFloat(selectedRoom["ราคาลด"]) : parseFloat(selectedRoom["ราคา"]);
+      if (isNaN(nightlyPrice)) {
+        nightlyPrice = 0;
+      }
+
+      // คำนวณราคารวมตามจำนวนคืน
+      const totalPrice = nightlyPrice * nights;
+      document.getElementById("bookRoomPrice").value = totalPrice;
+    }
+
+    // Show specific step
+    function showStep(stepId) {
+      document.getElementById("step1").classList.add("hidden");
+      document.getElementById("step2").classList.add("hidden");
+      document.getElementById("step3").classList.add("hidden");
+      document.getElementById(stepId).classList.remove("hidden");
+    }
+
+    // Back button event listeners
+    document.getElementById("backToStep1").addEventListener("click", () => {
+      showStep("step1");
+    });
+    document.getElementById("backToStep2").addEventListener("click", () => {
+      showStep("step2");
+    });
+
+    // Update rooms when date range changes
+    function updateRooms() {
+      const dateRange = document.getElementById("step1DateRange").value;
+      if (!dateRange.includes(" to ")) {
+        return;
+      }
+      const parts = dateRange.split(" to ");
+      const checkIn = parts[0].trim();
+      const checkOut = parts[1].trim();
+      if (checkIn && checkOut) {
+        fetchRooms(checkIn, checkOut);
+      }
+    }
+
+    document.getElementById("step1DateRange").addEventListener("change", updateRooms);
+
+    document.addEventListener("DOMContentLoaded", () => {
+      flatpickr("#step1DateRange", {
+        mode: "range",
+        dateFormat: "d-m-Y",
+        minDate: "today", // เพิ่มบรรทัดนี้เพื่อไม่ให้เลือกวันที่ก่อนวันนี้
+        locale: "th",     // ตั้งค่าให้แสดงภาษาไทย
+        onClose: updateRooms,
+      });
+      fetchAllRooms();
+    });
+
+    // Submit booking form (แสดงข้อความแจ้งข้อผิดพลาด inline)
+    document.getElementById("submitBookingBtn").addEventListener("click", () => {
+      // ลบข้อความแจ้งข้อผิดพลาดเดิม (ถ้ามี)
+      document.querySelectorAll('.error-message').forEach(el => el.remove());
+
+      let isValid = true;
+      const renterName = document.getElementById("bookRenterName");
+      const phone = document.getElementById("bookPhone");
+      const userLineId = document.getElementById("bookUserLineId");
+
+      if (!renterName.value.trim()) {
+        const error = document.createElement("div");
+        error.className = "error-message text-red-500 text-sm mt-1";
+        error.textContent = "กรุณากรอกชื่อผู้เช่า";
+        renterName.parentNode.appendChild(error);
+        isValid = false;
+      }
+      if (!phone.value.trim()) {
+        const error = document.createElement("div");
+        error.className = "error-message text-red-500 text-sm mt-1";
+        error.textContent = "กรุณากรอกเบอร์ติดต่อ";
+        phone.parentNode.appendChild(error);
+        isValid = false;
+      }
+      if (!userLineId.value.trim()) {
+        const error = document.createElement("div");
+        error.className = "error-message text-red-500 text-sm mt-1";
+        error.textContent = "กรุณาเข้าสู่ระบบ LINE";
+        userLineId.parentNode.appendChild(error);
+        isValid = false;
+      }
+
+      if (!isValid) {
+        return;
+      }
+
+      const btn = document.getElementById("submitBookingBtn");
+      btn.disabled = true;
+      btn.textContent = "กำลังบันทึก...";
+      showLoading();
+
+      const bookingData = {
+        roomId: document.getElementById("bookRoomId").value, // ส่งไอดีห้อง
+        roomName: document.getElementById("bookRoomName").value,
+        roomCategory: document.getElementById("bookRoomCategory").value,
+        roomPrice: document.getElementById("bookRoomPrice").value,
+        checkIn: document.getElementById("bookCheckIn").value,
+        checkOut: document.getElementById("bookCheckOut").value,
+        numGuests: document.getElementById("bookNumGuests").value,
+        renterName: renterName.value.trim(),
+        phone: phone.value.trim(),
+        email: document.getElementById("bookEmail").value,
+        note: document.getElementById("bookNote").value,
+        userLineId: userLineId.value.trim(),
+      };
+
+      fetch(CONFIG.GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(bookingData),
+      })
+        .then((response) => response.text())
+        .then((data) => {
+          console.log(data);
+          alert("บันทึกการจองเรียบร้อย");
+          hideLoading();
+          if (liff && liff.close) {
+            liff.close();
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          hideLoading();
+          btn.disabled = false;
+          btn.textContent = "บันทึกการจอง";
+        });
+    });
+  </script>
+</body>
+
+</html>
